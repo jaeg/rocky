@@ -1,49 +1,48 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 )
 
+var target = flag.String("target", "localhost:6379", "Target address to forward traffic to.")
+var port = flag.String("port", ":9999", "Port to run the reverse proxy on")
+
 func main() {
-	ln, err := net.Listen("tcp", ":6380")
+	flag.Parse()
+	ln, err := net.Listen("tcp", *port)
 	if err != nil {
-		// handle error
+		fmt.Println(err)
+		return
+	}
+
+	targetConn, err := net.Dial("tcp", *target)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			// handle error
 		}
-		handleConnection(conn)
+		fmt.Println("New connection")
+		go handleToTarget(conn, targetConn)
+		go handleFromTarget(conn, targetConn)
 	}
-}
-
-func handleConnection(conn net.Conn) {
-	fmt.Println("New connection")
-	targetConn, err := net.Dial("tcp", "127.0.0.1:6379")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	go handleToTarget(conn, targetConn)
-	go handleFromTarget(conn, targetConn)
-
 }
 
 func handleToTarget(conn net.Conn, targetConn net.Conn) {
 	for {
 		buf := make([]byte, 1)
 		_, err := conn.Read(buf)
-		fmt.Println("To Target:", buf)
 		if err != nil {
 			fmt.Println("Error reading to target:", err.Error())
 			return
 		}
 
 		targetConn.Write(buf)
-
 	}
 }
 
